@@ -1,6 +1,7 @@
 name: notatki
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python==3.11.11
   - openai==1.76.0

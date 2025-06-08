@@ -6,6 +6,7 @@ from hashlib import md5
 from openai import OpenAI
 from streamlit_javascript import st_javascript
 import json
+from pydub import AudioSegment
 
 env = st.secrets
 
@@ -122,8 +123,32 @@ if note_audio:
     st.audio(st.session_state["note_audio_bytes"], format="audio/mp3")
 
     if st.button("Transkrybuj audio"):
-        st.session_state["note_audio_text"] = transcribe_audio(st.session_state["note_audio_bytes"])
+        audio_bytes_to_transcribe = st.session_state["note_audio_bytes"]
+        
+        # Obliczanie czasu trwania i kosztu
+        duration_seconds = 0
+        cost = 0
+        try:
+            # Upewnij się, że ffmpeg jest zainstalowany i dostępny w PATH, jeśli nie jest dołączony do pydub
+            audio_segment = AudioSegment.from_file(BytesIO(audio_bytes_to_transcribe), format="mp3")
+            duration_seconds = len(audio_segment) / 1000.0  # Czas trwania w sekundach
+            
+            # Koszt API OpenAI Whisper to $0.006 za minutę.
+            cost_per_minute = 0.006
+            cost = (duration_seconds / 60) * cost_per_minute
+        except Exception as e:
+            st.warning(f"Nie można było obliczyć czasu trwania audio do oszacowania kosztu: {e}")
+
+        # Wykonaj transkrypcję
+        st.session_state["note_audio_text"] = transcribe_audio(audio_bytes_to_transcribe)
         st.session_state["text_approved"] = False # Po nowej transkrypcji, tekst nie jest jeszcze zatwierdzony
+
+        # Wyświetl informację o koszcie, jeśli udało się go obliczyć
+        if duration_seconds > 0:
+            st.info(f"Audio miało długość {duration_seconds:.2f} sekund. Szacowany koszt transkrypcji: ${cost:.5f} USD.")
+        else:
+            st.info("Wykonano transkrypcję.")
+
 
     if st.session_state["note_audio_text"]:
         if not st.session_state.get("text_approved", False):

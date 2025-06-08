@@ -5,6 +5,7 @@ from dotenv import dotenv_values
 from hashlib import md5
 from openai import OpenAI
 from streamlit_javascript import st_javascript
+import json
 
 env = st.secrets
 
@@ -98,6 +99,9 @@ if "note_audio_bytes" not in st.session_state:
 if "note_audio_text" not in st.session_state:
     st.session_state["note_audio_text"] = ""
 
+# Dodajemy nową zmienną stanu do śledzenia, czy tekst został zatwierdzony
+st.session_state.setdefault("text_approved", False)
+
 # Główny interfejs aplikacji (widoczny tylko dla zalogowanych użytkowników)
 st.title("Audio Notatki")
 note_audio = audiorecorder(
@@ -113,73 +117,56 @@ if note_audio:
     if st.session_state["note_audio_bytes_md5"] != current_md5:
         st.session_state["note_audio_text"] = ""
         st.session_state["note_audio_bytes_md5"] = current_md5
+        st.session_state["text_approved"] = False # Resetuj stan zatwierdzenia dla nowego audio
 
     st.audio(st.session_state["note_audio_bytes"], format="audio/mp3")
 
     if st.button("Transkrybuj audio"):
         st.session_state["note_audio_text"] = transcribe_audio(st.session_state["note_audio_bytes"])
+        st.session_state["text_approved"] = False # Po nowej transkrypcji, tekst nie jest jeszcze zatwierdzony
 
     if st.session_state["note_audio_text"]:
-        edited_text = st.text_area("Edytuj notatkę", value=st.session_state["note_audio_text"])
-        
-        # Dodanie przycisku do pobrania transkrypcji jako plik tekstowy
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.download_button(
-                label="Pobierz jako plik",
-                data=edited_text,
-                file_name="transkrypcja.txt",
-                mime="text/plain",
+        if not st.session_state.get("text_approved", False):
+            # --- Tryb edycji ---
+            edited_text_in_area = st.text_area(
+                "Edytuj notatkę",
+                value=st.session_state["note_audio_text"], # Inicjuj z aktualnym tekstem
+                key=f"text_area_edit_{st.session_state.get('note_audio_bytes_md5', 'default_md5')}"
             )
-        
-        with col2:
-            if st.button("Kopiuj do schowka", key=f"copy_btn_{st.session_state['note_audio_bytes_md5']}_{hash(edited_text)}"):
-                # Pobierz tekst bezpośrednio ze stanu sesji
-                text_to_copy = st.session_state["note_audio_text"]
-                
-                # Bezpieczne escapowanie tekstu
-                import json
-                escaped_text = json.dumps(text_to_copy)
-                
-                # Użyj nowej metody kopiowania do schowka (bardziej niezawodna)
-                js_code = f"""
-                navigator.clipboard.writeText({escaped_text})
-                .then(() => {{
-                    return true;
-                }})
-                .catch(err => {{
-                    console.error('Nie można skopiować tekstu: ', err);
-                    return false;
-                }});
-                """
-                
-                success = st_javascript(js_code)
-                
-                if success:
-                    st.success("Transkrypcja została skopiowana do schowka systemowego!")
-                else:
-                    # Zapasowa metoda, jeśli nowoczesne API nie zadziała
-                    backup_js = f"""
-                    try {{
-                        const el = document.createElement('textarea');
-                        el.value = {escaped_text};
-                        el.setAttribute('readonly', '');
-                        el.style.position = 'absolute';
-                        el.style.left = '-9999px';
-                        document.body.appendChild(el);
-                        el.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(el);
-                        return true;
-                    }} catch (err) {{
-                        console.error('Błąd kopiowania: ', err);
-                        return false;
-                    }}
-                    """
-                    backup_success = st_javascript(backup_js)
-                    
-                    if backup_success:
-                        st.success("Transkrypcja została skopiowana do schowka systemowego!")
-                    else:
-                        st.error("Nie udało się skopiować tekstu do schowka. Spróbuj użyć przycisku 'Pobierz jako plik'.")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.download_button(
+                    label="Pobierz jako plik",
+                    data=edited_text_in_area, # Pobieraj tekst z text_area
+                    file_name="transkrypcja.txt",
+                    mime="text/plain",
+                )
+            
+            with col2:
+                approve_button_key = f"approve_btn_{st.session_state.get('note_audio_bytes_md5', 'default_md5')}"
+                if st.button("Zatwierdź tekst", key=approve_button_key):
+                    st.session_state["note_audio_text"] = edited_text_in_area # Zapisz edytowany tekst
+                    st.session_state["text_approved"] = True
+                    st.rerun()
+        else:
+            # --- Tryb wyświetlania zatwierdzonego tekstu ---
+            st.subheader("Zatwierdzona transkrypcja:")
+            # st.code zazwyczaj ma wbudowany przycisk kopiowania
+            st.code(st.session_state["note_audio_text"], language=None) 
+            
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.download_button(
+                    label="Pobierz zatwierdzony tekst",
+                    data=st.session_state["note_audio_text"],
+                    file_name="zatwierdzona_transkrypcja.txt",
+                    mime="text/plain",
+                )
+            with col2:
+                edit_again_button_key = f"edit_again_btn_{st.session_state.get('note_audio_bytes_md5', 'default_md5')}"
+                if st.button("Edytuj ponownie", key=edit_again_button_key):
+                    st.session_state["text_approved"] = False
+                    st.rerun()

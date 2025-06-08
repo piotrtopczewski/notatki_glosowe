@@ -1,0 +1,13 @@
+name: notatki
+channels:
+  - conda-forge
+dependencies:
+  - python==3.11.11
+  - openai==1.76.0
+  - streamlit==1.44.1
+  - python-dotenv
+  - ffmpeg
+  - pydub
+  - pip:
+    - streamlit-audiorecorder==0.0.6
+    - streamlit-javascript==0.1.5

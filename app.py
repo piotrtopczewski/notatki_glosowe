@@ -6,7 +6,7 @@ from hashlib import md5
 from openai import OpenAI
 from streamlit_javascript import st_javascript
 
-env = dotenv_values(".env")
+env = st.secrets
 
 AUDIO_TRANSCRIBE_MODEL = "whisper-1"
 

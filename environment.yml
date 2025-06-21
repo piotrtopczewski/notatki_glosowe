@@ -8,6 +8,7 @@ dependencies:
   - python-dotenv
   - ffmpeg
   - pydub==0.25.1
+  - pip 
   - pip:
     - streamlit-audiorecorder==0.0.6
     - streamlit-javascript==0.1.5

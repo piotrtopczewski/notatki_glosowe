@@ -1,5 +1,5 @@
 openai==1.76.0
 streamlit==1.44.1
 pydub==0.25.1
-streamlit-audiorecorder==0.0.6
+streamlit-audiorecorder
 streamlit-javascript==0.1.5
